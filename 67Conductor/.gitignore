@@ -1,0 +1,8 @@
+.venv/*
+Include/*
+Lib/*
+Scripts/*
+pyvenv.cfg
+Server_src/node_modules/
+Server_src/package-lock.json
+*.gguf
