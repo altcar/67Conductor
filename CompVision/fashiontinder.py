@@ -5,8 +5,8 @@ import pygame
 import logging
 
 pygame.mixer.init()
-like_sound = pygame.mixer.Sound('sounds/like.wav')
-dislike_sound = pygame.mixer.Sound('sounds/dislike.mp3')
+like_sound = pygame.mixer.Sound('lib/sounds/like.wav')
+dislike_sound = pygame.mixer.Sound('lib/sounds/like.wav')
 
 def likeClothes():
     if not pygame.mixer.get_busy():

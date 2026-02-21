@@ -7,88 +7,16 @@ import sys
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 import logging
-import socket
-import json
+import re
 import time
 import os
-import threading
+import urllib.request
+import urllib.error
 from collections import deque
 
-
-def main():
-  if len(sys.argv) < 2:
-    print("Usage: python poseture.py <camera_index>")
-    return 
-  run_video_poselandmarker()
-
-
-# --- Configuration for gesture detection and signaling ---
-# Use UDP to send a single message when a pattern is detected and a RESET when gestures stop.
-UDP_HOST = os.environ.get('BODYPOSE_UDP_HOST', '127.0.0.1')
-UDP_PORT = int(os.environ.get('BODYPOSE_UDP_PORT', '5005'))
-# Margins for considering wrists "up" or "down" relative to shoulder (normalized coords)
+# thresholds for classification
 UP_MARGIN = 0.03
 DOWN_MARGIN = 0.03
-# How many stable frames (no movement / neutral) to consider the gesture stopped / reset
-RESET_STABLE_FRAMES = 25
-# Max sequence length to keep (if still needed for local buffering)
-MAX_SEQ_LEN = 128
-
-# UDP settings: Python will SEND landmark frames to Haskell at (HOST:PORT).
-# Haskell can send back a notification to PY_NOTIFY_PORT to tell Python a pattern
-# was detected (single-shot). Configure via environment variables.
-UDP_HOST = os.environ.get('BODYPOSE_UDP_HOST', '127.0.0.1')
-UDP_PORT = int(os.environ.get('BODYPOSE_UDP_PORT', '5005'))
-PY_NOTIFY_PORT = int(os.environ.get('BODYPOSE_NOTIFY_PORT', '5006'))
-# Rate-limit sending (milliseconds) and movement threshold for sending updates
-SEND_INTERVAL_MS = int(os.environ.get('BODYPOSE_SEND_INTERVAL_MS', '100'))
-SEND_MOVE_THRESH = float(os.environ.get('BODYPOSE_SEND_MOVE_THRESH', '0.02'))
-
-
-def send_udp_message(payload: bytes, host=UDP_HOST, port=UDP_PORT, sock=None):
-  try:
-    if sock is not None:
-      sock.sendto(payload, (host, port))
-      return
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-      s.sendto(payload, (host, port))
-  except Exception as e:
-    logging.getLogger(__name__).exception("Failed to send UDP message: %s", e)
-
-
-def start_notify_listener(state):
-  """Start a background thread that listens for notifications from Haskell.
-
-  When a UDP packet is received on PY_NOTIFY_PORT, set state['last_notify'] to
-  (time, message). This allows the main loop to react (e.g., display one-shot overlay).
-  """
-  def listener():
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(('0.0.0.0', PY_NOTIFY_PORT))
-    logger = logging.getLogger(__name__)
-    logger.info("Notify listener bound on port %d", PY_NOTIFY_PORT)
-    while not state.get('stop_listener'):
-      try:
-        sock.settimeout(0.5)
-        data, addr = sock.recvfrom(4096)
-        msg = data.decode('utf-8', errors='replace')
-        state['last_notify'] = (time.time(), msg)
-        logger.info("Received notify from %s: %s", addr, msg)
-      except socket.timeout:
-        continue
-      except Exception:
-        logger.exception("Notify listener error")
-        break
-    try:
-      sock.close()
-    except Exception:
-      pass
-
-  t = threading.Thread(target=listener, daemon=True)
-  t.start()
-  return t
-
 
 def classify_AB_from_landmarks(landmarks):
   """Return 'A' or 'B' or None from a single pose landmarks list.
@@ -96,8 +24,6 @@ def classify_AB_from_landmarks(landmarks):
   A = left hand up, right hand down
   B = left hand down, right hand up
   """
-  # Expect landmarks sequence (normalized). Use indices from Mediapipe Pose:
-  # left_shoulder=11, right_shoulder=12, left_wrist=15, right_wrist=16
   try:
     l_sh = landmarks[11].y
     r_sh = landmarks[12].y
@@ -117,148 +43,286 @@ def classify_AB_from_landmarks(landmarks):
     return 'B'
   return None
 
+
+def main():
+  if len(sys.argv) < 2:
+    print("Usage: python poseture.py <camera_index>")
+    return 
+  run_video_poselandmarker()
+
 def run_video_poselandmarker():
+  logger = logging.getLogger(__name__)
+  logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+
   # STEP 2: Create a PoseLandmarker object.
   base_options = python.BaseOptions(model_asset_path='lib/pose_landmarker_heavy.task')
   options = vision.PoseLandmarkerOptions(
     base_options=base_options,
     output_segmentation_masks=True,
-    num_poses=1  # Allow detection of up to 2 people (adjust as needed).
+    num_poses=1
   )
   detector = vision.PoseLandmarker.create_from_options(options)
+
+  # front-end API to notify when pattern detected
+  FRONTEND_API_URL = os.environ.get('BODYPOSE_FRONTEND_API')
 
   # Open the camera stream.
   cap = cv2.VideoCapture(int(sys.argv[1]))
   if not cap.isOpened():
-    logging.getLogger(__name__).error("Error: Could not open camera.")
+    logger.error("Could not open camera (index %s)", sys.argv[1])
     return
 
-  # initialize state for gesture detection / sending
+  # detection state
   state = {
+    'seq': deque(maxlen=128),
+    'last_code': None,
+    'signaled': False,
     'stable_frames': 0,
     'last_lw_y': None,
     'last_rw_y': None,
-    'last_notify': None,
-    'stop_listener': False,
   }
 
-  # start listener thread to receive single-shot notifications from Haskell
-  start_notify_listener(state)
+  PATTERN = re.compile(r'^(?:AB){2,}(?:A)?$|^(?:BA){2,}(?:B)?$')
+  RESET_STABLE_FRAMES = 25
+  # extend state for horizontal tracking and swipe signaling
+  state['last_lw_x'] = None
+  state['last_rw_x'] = None
+  state['swipe_signaled_left'] = False
+  state['swipe_signaled_right'] = False
 
-  # prepare UDP socket for sending landmark frames (reused)
-  send_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-  send_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-  last_sent = {'time': 0.0, 'landmarks': None}
-  indices_to_send = [11, 12, 13, 14, 15, 16]
+  # wrap detector.detect to compute swipe logic and draw a top percentage bar directly onto the image,
+  # so later drawing/copying preserves the overlay
+  _orig_detect = detector.detect
+
+  def _detect_with_swipe(image):
+    detection_result = _orig_detect(image)
+
+    try:
+      if not detection_result.pose_landmarks:
+        # nothing to do
+        return detection_result
+
+      lm = detection_result.pose_landmarks[0]
+
+      # midpoint between shoulders
+      mid_x = (lm[11].x + lm[12].x) / 2.0
+      shoulder_dx = abs(lm[11].x - lm[12].x)
+      shoulder_dx = max(shoulder_dx, 0.05)  # avoid tiny spans
+      span = shoulder_dx  # how far left/right we consider for full progress
+      margin = span * 0.15  # crossing hysteresis margin
+
+      # wrist x positions
+      lw_x = lm[15].x
+      rw_x = lm[16].x
+
+      # helper to map x to 0..1 across [mid-span, mid+span]
+      min_x = mid_x - span
+      max_x = mid_x + span
+      def norm_pct(x):
+        return max(0.0, min(1.0, (x - min_x) / (max_x - min_x)))
+
+      l_pct = norm_pct(lw_x)
+      r_pct = norm_pct(rw_x)
+
+      # choose the hand that is currently further from the midpoint for the top bar
+      active_hand = 'L' if abs(lw_x - mid_x) > abs(rw_x - mid_x) else 'R'
+      active_pct = l_pct if active_hand == 'L' else r_pct
+      active_x = lw_x if active_hand == 'L' else rw_x
+
+      # detect crossing events for both hands (left hand index 15, right hand index 16)
+      def check_and_signal(hand_name, last_x_key, cur_x, signaled_key, hand_label):
+        last_x = state.get(last_x_key)
+        # crossing left->right
+        if last_x is not None and not state.get(signaled_key, False):
+          if last_x < (mid_x - margin) and cur_x > (mid_x + margin):
+            # moved from left of mid to right -> swipe right
+            try:
+              notify_frontend({'event': 'swipe', 'direction': 'right', 'hand': hand_label})
+            except Exception:
+              pass
+            state[signaled_key] = True
+          elif last_x > (mid_x + margin) and cur_x < (mid_x - margin):
+            # moved from right of mid to left -> swipe left
+            try:
+              notify_frontend({'event': 'swipe', 'direction': 'left', 'hand': hand_label})
+            except Exception:
+              pass
+            state[signaled_key] = True
+        # reset signal when hand returns close to midpoint (neutral)
+        if abs(cur_x - mid_x) < (margin * 0.6):
+          state[signaled_key] = False
+
+      check_and_signal('left', 'last_lw_x', lw_x, 'swipe_signaled_left', 'left')
+      check_and_signal('right', 'last_rw_x', rw_x, 'swipe_signaled_right', 'right')
+
+      # draw a horizontal percentage bar at the very top of the image onto the mp.Image's numpy view
+      try:
+        img = image.numpy_view()  # RGB image that will later be copied into annotated_image
+        h_img, w_img, _ = img.shape
+        bar_h = 18
+        pad = 8
+        bx1 = pad
+        by1 = pad
+        bx2 = w_img - pad
+        by2 = pad + bar_h
+
+        # background bar
+        cv2.rectangle(img, (bx1, by1), (bx2, by2), (40, 40, 40), -1)
+
+        # fill according to active_pct (left->right)
+        fill_w = int((bx2 - bx1) * active_pct)
+        fill_x = bx1 + fill_w
+        # color: green for rightward (pct>0.5), blue for left-biased (pct<=0.5)
+        color = (0, 200, 0) if active_hand == 'R' else (200, 100, 0)
+        cv2.rectangle(img, (bx1, by1), (bx1 + fill_w, by2), color, -1)
+
+        # center text like "Swipe: 34% (L)"
+        txt = f"Swipe: {int(active_pct*100)}% ({active_hand})"
+        txt_size = 0.5
+        cv2.putText(img, txt, (bx1 + 6, by2 - 4), cv2.FONT_HERSHEY_SIMPLEX, txt_size, (255,255,255), 1, cv2.LINE_AA)
+      except Exception:
+        # swallow drawing exceptions to not break detection
+        pass
+
+      # update last positions
+      state['last_lw_x'] = lw_x
+      state['last_rw_x'] = rw_x
+
+      # also store some derived values for potential later use
+      detection_result._swipe = {
+        'mid_x': mid_x,
+        'left_pct': l_pct,
+        'right_pct': r_pct,
+        'active_hand': active_hand,
+        'active_pct': active_pct,
+      }
+    except Exception:
+      # keep original detect behavior on any failure
+      state['last_lw_x'] = state.get('last_lw_x')
+      state['last_rw_x'] = state.get('last_rw_x')
+    return detection_result
+
+  # install wrapper
+  detector.detect = _detect_with_swipe
+  def notify_frontend(payload: dict):
+    if not FRONTEND_API_URL:
+      logger.info("Frontend notify (disabled): %s", payload)
+      return
+    try:
+      data = bytes(str(payload).replace("'", '"'), 'utf-8')
+      req = urllib.request.Request(FRONTEND_API_URL, data=data, headers={'Content-Type': 'application/json'}, method='POST')
+      with urllib.request.urlopen(req, timeout=2) as resp:
+        logger.info("Notify sent, status=%s", resp.status)
+    except Exception:
+      logger.exception("Failed to notify frontend")
 
   while True:
     ret, frame = cap.read()
     if not ret:
-      logging.getLogger(__name__).error("Error: Could not read frame.")
+      logger.error("Could not read frame from camera")
       break
 
-    # Convert the frame to RGB as Mediapipe expects RGB images.
     rgb_frame = cv2.cvtColor(cv2.flip(frame, 1), cv2.COLOR_BGR2RGB)
     image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
 
-    # Detect pose landmarks from the camera frame.
     detection_result = detector.detect(image)
 
-    # Visualize the detection result.
-    annotated_image = draw_landmarks_on_image(image.numpy_view(), detection_result)
-
-    # If Haskell sent a notification recently, show a one-shot overlay (2s)
-    if state.get('last_notify') is not None:
-      ts, msg = state['last_notify']
-      if time.time() - ts < 2.0:
-        try:
-          cv2.putText(annotated_image, f"NOTIFY: {msg}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
-        except Exception:
-          pass
-
-    # ---------------- Send landmarks to Haskell (UDP) ----------------
     if detection_result.pose_landmarks:
-      lm = detection_result.pose_landmarks[0]
-      # collect the selected indices
+      annotated_image = draw_landmarks_on_image(image.numpy_view(), detection_result)
+    else:
+      annotated_image = image.numpy_view().copy()
+
+    # classification per frame
+    current_code = None
+    if detection_result.pose_landmarks:
+      current_code = None
       try:
-        lm_payload = {}
-        for idx in indices_to_send:
-          pt = lm[idx]
-          lm_payload[str(idx)] = {'x': float(pt.x), 'y': float(pt.y), 'z': float(pt.z)}
+        current_code = classify_AB_from_landmarks(detection_result.pose_landmarks[0])
       except Exception:
-        lm_payload = None
+        logger.debug("Failed to classify frame")
 
-      # compute movement magnitude vs last sent
-      should_send = False
-      now = time.time()
-      if lm_payload is not None:
-        if last_sent['landmarks'] is None:
-          should_send = True
-        else:
-          max_delta = 0.0
-          for k, v in lm_payload.items():
-            prev = last_sent['landmarks'].get(k)
-            if prev is None:
-              max_delta = max_delta or 0.0
-              continue
-            max_delta = max(max_delta, abs(v['x'] - prev['x']), abs(v['y'] - prev['y']), abs(v['z'] - prev['z']))
-          if max_delta >= SEND_MOVE_THRESH:
-            should_send = True
-        # also enforce rate limit
-        if (now - last_sent['time']) < (SEND_INTERVAL_MS / 1000.0):
-          should_send = False
+    # Draw two vertical percentage bars (top-left): left hand and right hand.
+    try:
+      if detection_result.pose_landmarks:
+        lm = detection_result.pose_landmarks[0]
 
-        if should_send:
-          payload_obj = {'ts': now, 'landmarks': lm_payload}
+        def hand_percent(elbow_i, wrist_i, shoulder_i):
           try:
-            send_udp_message(json.dumps(payload_obj).encode('utf-8'), sock=send_sock)
-            last_sent['time'] = now
-            last_sent['landmarks'] = lm_payload
-            logging.getLogger(__name__).debug("Sent landmarks to %s:%d", UDP_HOST, UDP_PORT)
+            elbow_y = lm[elbow_i].y
+            wrist_y = lm[wrist_i].y
+            shoulder_y = lm[shoulder_i].y
           except Exception:
-            logging.getLogger(__name__).exception("Failed to send landmarks")
+            return None
+          d = abs(elbow_y - shoulder_y)
+          if d < 1e-4:
+            d = 0.1
+          up_limit = elbow_y - d
+          down_limit = elbow_y + d
+          # percent: 1.0 when wrist at up_limit (high), 0.0 when at down_limit (low)
+          pct = (down_limit - wrist_y) / (down_limit - up_limit)
+          if pct != pct:  # NaN
+            return None
+          return max(0.0, min(1.0, pct))
 
-      # update last wrist positions for simple movement-based reset (optional local use)
-      try:
-        lw_y = lm[15].y
-        rw_y = lm[16].y
-      except Exception:
-        lw_y = None
-        rw_y = None
-      if state['last_lw_y'] is not None and lw_y is not None and state['last_rw_y'] is not None:
-        if abs(lw_y - state['last_lw_y']) > UP_MARGIN or abs(rw_y - state['last_rw_y']) > UP_MARGIN:
-          state['stable_frames'] = 0
-      state['last_lw_y'] = lw_y
-      state['last_rw_y'] = rw_y
+        left_pct = hand_percent(13, 17, 11)
+        right_pct = hand_percent(14, 18, 12)
 
+        # draw bars on annotated_image (RGB). Reserve a small panel at top-left.
+        h_img, w_img, _ = annotated_image.shape
+        panel_x = 10
+        panel_y = 10
+        bar_w = 30
+        bar_h = 120
+        gap = 10
 
-  # # Display landmarks 0 to 18 on the camera streaming window.
-  #   if detection_result.pose_landmarks:
-  #     for i in range(19):  # Loop through landmarks 0 to 18.
-  #       landmark = detection_result.pose_landmarks[0][i]
-  #       h, w, _ = rgb_frame.shape
-  #       cx, cy = int(landmark.x * w), int(landmark.y * h)
-  #       cv2.circle(annotated_image, (cx, cy), 5, (0, 255, 0), -1)  # Draw a green circle for each landmark.
-  #       cv2.putText(annotated_image, str(i), (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-  #       cv2.putText(annotated_image, f"x:{landmark.x:.2f}, y:{landmark.y:.2f}, z:{landmark.z:.2f}", 
-  #             (cx, cy + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
+        # left bar rectangle background
+        lx = panel_x
+        ly = panel_y
+        rx = lx + bar_w
+        ry = ly + bar_h
+        # background (dark gray)
+        cv2.rectangle(annotated_image, (lx, ly), (rx, ry), (50, 50, 50), -1)
+        # right bar
+        lx2 = rx + gap
+        rx2 = lx2 + bar_w
+        cv2.rectangle(annotated_image, (lx2, ly), (rx2, ry), (50, 50, 50), -1)
+
+        # fill based on percent (from bottom)
+        if left_pct is not None:
+          fill_h = int(bar_h * left_pct)
+          top_fill = ry - fill_h
+          cv2.rectangle(annotated_image, (lx, top_fill), (rx, ry), (0, 200, 0), -1)
+          cv2.putText(annotated_image, f"L {int(left_pct*100)}%", (lx, ry + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
+        else:
+          cv2.putText(annotated_image, "L --%", (lx, ry + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200,200,200), 1)
+
+        if right_pct is not None:
+          fill_h = int(bar_h * right_pct)
+          top_fill = ry - fill_h
+          cv2.rectangle(annotated_image, (lx2, top_fill), (rx2, ry), (0, 100, 255), -1)
+          cv2.putText(annotated_image, f"R {int(right_pct*100)}%", (lx2, ry + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255,255,255), 1)
+        else:
+          cv2.putText(annotated_image, "R --%", (lx2, ry + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200,200,200), 1)
+    except Exception:
+      logger.exception("Error drawing hand percentage bars")
+
+# Display landmarks 0 to 18 on the camera streaming window.
+    if detection_result.pose_landmarks:
+      for i in range(19):  # Loop through landmarks 0 to 18.
+        landmark = detection_result.pose_landmarks[0][i]
+        h, w, _ = rgb_frame.shape
+        cx, cy = int(landmark.x * w), int(landmark.y * h)
+        cv2.circle(annotated_image, (cx, cy), 5, (0, 255, 0), -1)  # Draw a green circle for each landmark.
+        cv2.putText(annotated_image, str(i), (cx, cy - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+        cv2.putText(annotated_image, f"x:{landmark.x:.2f}, y:{landmark.y:.2f}, z:{landmark.z:.2f}", 
+              (cx, cy + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 0, 0), 1)
+
 
     cv2.imshow("Pose Landmarks", cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
 
-    # Exit the loop when 'q' is pressed.
     if cv2.waitKey(1) & 0xFF == ord('q'):
       break
 
-  # Release the camera and close all OpenCV windows.
-  # signal listener to stop and close sending socket
-  try:
-    state['stop_listener'] = True
-  except Exception:
-    pass
-  try:
-    send_sock.close()
-  except Exception:
-    pass
   cap.release()
   cv2.destroyAllWindows()
 

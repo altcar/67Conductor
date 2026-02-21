@@ -98,7 +98,8 @@ def main():
 
     # Initialize GestureRecognizer
     base_options = python.BaseOptions(model_asset_path='lib/gesture_recognizer.task')
-    options = vision.GestureRecognizerOptions(base_options=base_options)
+    options = vision.GestureRecognizerOptions(base_options=base_options,
+                                              num_hands=2)
     recognizer = vision.GestureRecognizer.create_from_options(options)
 
     try:
