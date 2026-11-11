@@ -1,0 +1,284 @@
+{
+  "t-shirt": {
+    "label": "tee",
+    "entries": [
+      {
+        "id": "tshirt-981d021928",
+        "file": "/products/tshirt-981d021928.jpg"
+      },
+      {
+        "id": "tshirt-088dcc020b",
+        "file": "/products/tshirt-088dcc020b.jpg"
+      },
+      {
+        "id": "tshirt-4d2fa7cf9c",
+        "file": "/products/tshirt-4d2fa7cf9c.jpg"
+      },
+      {
+        "id": "tshirt-249b753543",
+        "file": "/products/tshirt-249b753543.jpg"
+      },
+      {
+        "id": "tshirt-36073ba303",
+        "file": "/products/tshirt-36073ba303.jpg"
+      },
+      {
+        "id": "tshirt-de66e1ffd2",
+        "file": "/products/tshirt-de66e1ffd2.jpg"
+      },
+      {
+        "id": "tshirt-5d91a5e470",
+        "file": "/products/tshirt-5d91a5e470.jpg"
+      }
+    ]
+  },
+  "longsleeve": {
+    "label": "long sleeve",
+    "entries": [
+      {
+        "id": "longsleeve-f512aef206",
+        "file": "/products/longsleeve-f512aef206.jpg"
+      },
+      {
+        "id": "longsleeve-948fc36d02",
+        "file": "/products/longsleeve-948fc36d02.jpg"
+      },
+      {
+        "id": "longsleeve-7773b631d3",
+        "file": "/products/longsleeve-7773b631d3.jpg"
+      },
+      {
+        "id": "longsleeve-22d667ad44",
+        "file": "/products/longsleeve-22d667ad44.jpg"
+      },
+      {
+        "id": "longsleeve-134c9c69db",
+        "file": "/products/longsleeve-134c9c69db.jpg"
+      },
+      {
+        "id": "longsleeve-772faf146f",
+        "file": "/products/longsleeve-772faf146f.jpg"
+      }
+    ]
+  },
+  "shirt": {
+    "label": "shirt",
+    "entries": [
+      {
+        "id": "shirt-f2db7b1198",
+        "file": "/products/shirt-f2db7b1198.jpg"
+      },
+      {
+        "id": "shirt-e0cd480c65",
+        "file": "/products/shirt-e0cd480c65.jpg"
+      },
+      {
+        "id": "shirt-4f9e9d09ef",
+        "file": "/products/shirt-4f9e9d09ef.jpg"
+      },
+      {
+        "id": "shirt-ec4b56d58e",
+        "file": "/products/shirt-ec4b56d58e.jpg"
+      },
+      {
+        "id": "shirt-14f5765e06",
+        "file": "/products/shirt-14f5765e06.jpg"
+      },
+      {
+        "id": "shirt-8849ddcc3f",
+        "file": "/products/shirt-8849ddcc3f.jpg"
+      }
+    ]
+  },
+  "outwear": {
+    "label": "outerwear",
+    "entries": [
+      {
+        "id": "outwear-b93d552be7",
+        "file": "/products/outwear-b93d552be7.jpg"
+      },
+      {
+        "id": "outwear-4e50935dad",
+        "file": "/products/outwear-4e50935dad.jpg"
+      },
+      {
+        "id": "outwear-d981447eb8",
+        "file": "/products/outwear-d981447eb8.jpg"
+      },
+      {
+        "id": "outwear-02baca3bbd",
+        "file": "/products/outwear-02baca3bbd.jpg"
+      },
+      {
+        "id": "outwear-d36d5b460b",
+        "file": "/products/outwear-d36d5b460b.jpg"
+      },
+      {
+        "id": "outwear-6f8cd4342a",
+        "file": "/products/outwear-6f8cd4342a.jpg"
+      }
+    ]
+  },
+  "dress": {
+    "label": "dress",
+    "entries": [
+      {
+        "id": "dress-39804a6f64",
+        "file": "/products/dress-39804a6f64.jpg"
+      },
+      {
+        "id": "dress-a3aaf1b9d8",
+        "file": "/products/dress-a3aaf1b9d8.jpg"
+      },
+      {
+        "id": "dress-9c710a8986",
+        "file": "/products/dress-9c710a8986.jpg"
+      },
+      {
+        "id": "dress-c65ced4de0",
+        "file": "/products/dress-c65ced4de0.jpg"
+      },
+      {
+        "id": "dress-4993e2bf4f",
+        "file": "/products/dress-4993e2bf4f.jpg"
+      },
+      {
+        "id": "dress-74ada88cc9",
+        "file": "/products/dress-74ada88cc9.jpg"
+      }
+    ]
+  },
+  "skirt": {
+    "label": "skirt",
+    "entries": [
+      {
+        "id": "skirt-e8b32f5173",
+        "file": "/products/skirt-e8b32f5173.jpg"
+      },
+      {
+        "id": "skirt-f5865adf95",
+        "file": "/products/skirt-f5865adf95.jpg"
+      },
+      {
+        "id": "skirt-0c4a47d11b",
+        "file": "/products/skirt-0c4a47d11b.jpg"
+      },
+      {
+        "id": "skirt-53853f268c",
+        "file": "/products/skirt-53853f268c.jpg"
+      },
+      {
+        "id": "skirt-2ef1beb140",
+        "file": "/products/skirt-2ef1beb140.jpg"
+      }
+    ]
+  },
+  "pants": {
+    "label": "trousers",
+    "entries": [
+      {
+        "id": "pants-91a6c546af",
+        "file": "/products/pants-91a6c546af.jpg"
+      },
+      {
+        "id": "pants-fc71a60d74",
+        "file": "/products/pants-fc71a60d74.jpg"
+      },
+      {
+        "id": "pants-3bf5a92f86",
+        "file": "/products/pants-3bf5a92f86.jpg"
+      },
+      {
+        "id": "pants-0adb409f96",
+        "file": "/products/pants-0adb409f96.jpg"
+      },
+      {
+        "id": "pants-dc801b0ab9",
+        "file": "/products/pants-dc801b0ab9.jpg"
+      },
+      {
+        "id": "pants-1a4ee588b9",
+        "file": "/products/pants-1a4ee588b9.jpg"
+      },
+      {
+        "id": "pants-4ee1d47f73",
+        "file": "/products/pants-4ee1d47f73.jpg"
+      }
+    ]
+  },
+  "shorts": {
+    "label": "shorts",
+    "entries": [
+      {
+        "id": "shorts-4bbd261e71",
+        "file": "/products/shorts-4bbd261e71.jpg"
+      },
+      {
+        "id": "shorts-6d8cf86f8c",
+        "file": "/products/shorts-6d8cf86f8c.jpg"
+      },
+      {
+        "id": "shorts-36d4959f05",
+        "file": "/products/shorts-36d4959f05.jpg"
+      },
+      {
+        "id": "shorts-0ffc92302f",
+        "file": "/products/shorts-0ffc92302f.jpg"
+      },
+      {
+        "id": "shorts-2651607780",
+        "file": "/products/shorts-2651607780.jpg"
+      }
+    ]
+  },
+  "shoes": {
+    "label": "shoes",
+    "entries": [
+      {
+        "id": "shoes-0fc4e46313",
+        "file": "/products/shoes-0fc4e46313.jpg"
+      },
+      {
+        "id": "shoes-bdb4b54629",
+        "file": "/products/shoes-bdb4b54629.jpg"
+      },
+      {
+        "id": "shoes-ca215b96bd",
+        "file": "/products/shoes-ca215b96bd.jpg"
+      },
+      {
+        "id": "shoes-0318ab65a3",
+        "file": "/products/shoes-0318ab65a3.jpg"
+      },
+      {
+        "id": "shoes-d3d9c3e8e6",
+        "file": "/products/shoes-d3d9c3e8e6.jpg"
+      },
+      {
+        "id": "shoes-5d8072c722",
+        "file": "/products/shoes-5d8072c722.jpg"
+      }
+    ]
+  },
+  "hat": {
+    "label": "hat",
+    "entries": [
+      {
+        "id": "hat-221e6429c0",
+        "file": "/products/hat-221e6429c0.jpg"
+      },
+      {
+        "id": "hat-dfd7763840",
+        "file": "/products/hat-dfd7763840.jpg"
+      },
+      {
+        "id": "hat-9f00dc8823",
+        "file": "/products/hat-9f00dc8823.jpg"
+      },
+      {
+        "id": "hat-5ba50e0b14",
+        "file": "/products/hat-5ba50e0b14.jpg"
+      }
+    ]
+  }
+}

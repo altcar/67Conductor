@@ -1,6 +1,14 @@
 # 67Conductor
 Repository for HackNotts 67Conductor
 
+**Browser implementation:** the [`web/`](./web) folder is a working, static rebuild of the 6'7'' store concept — gesture-driven resale, a hand-controlled synth and a form-coached curl counter, running entirely in the browser with MediaPipe + Web Audio. Start there:
+
+```bash
+cd web && npm install && npm run dev
+```
+
+The original hackathon prototype (Python/MediaPipe experiments, an Astro sketch and a local LLM server) is kept below for reference.
+
 
 
 curl -LsSf https://astral.sh/uv/install.sh | sh

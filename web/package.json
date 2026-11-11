@@ -1,0 +1,28 @@
+{
+  "name": "67-store",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "6' 7'' store - gesture-driven retail, entirely in the browser",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "import-assets": "node scripts/import-assets.mjs",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.2.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^8.3.7",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.0.0"
+  }
+}
