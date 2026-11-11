@@ -1,7 +1,11 @@
 # 67Conductor
 Repository for HackNotts 67Conductor
 
-**Browser implementation:** the [`web/`](./web) folder is a working, static rebuild of the 6'7'' store concept — gesture-driven resale, a hand-controlled synth and a form-coached curl counter, running entirely in the browser with MediaPipe + Web Audio. Start there:
+**Browser implementation:** the [`web/`](./web) folder is a working, static rebuild of the 6'7'' store concept — gesture-driven resale, a hand-controlled synth and a form-coached curl counter, running entirely in the browser with MediaPipe + Web Audio.
+
+**Live:** https://67conductor.hheylau.workers.dev — every push to `main` is built and deployed by Cloudflare Workers Builds.
+
+Start locally:
 
 ```bash
 cd web && npm install && npm run dev

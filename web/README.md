@@ -2,6 +2,8 @@
 
 A working, self-contained web build of the [`6′7″ store`](https://devpost.com/software/6-7-store) concept from HackNotts: gesture-driven resale, a hand-controlled synth, and a form-coached curl counter.
 
+**Live:** https://67conductor.hheylau.workers.dev
+
 No Python. No native app. No backend. The whole thing is static files plus on-device computer vision and Web Audio — it runs in a tab and keeps working offline after the first load.
 
 ![Rewear deck](docs/rewear.png)
@@ -125,7 +127,16 @@ Why no LLM: the original relied on a local LLM to make recommendations. For a st
 
 ## Deploy
 
-`wrangler.jsonc` is an assets-only Worker config — no server code, no bindings:
+The `67conductor` Worker is connected to `altcar/67Conductor` through Cloudflare Workers Builds. Every push to `main` runs, from the `web/` root:
+
+```bash
+npm ci && npm run build
+npx wrangler deploy
+```
+
+and publishes to https://67conductor.hheylau.workers.dev. The build token, branch, commands and root directory are stored in the Worker's build settings, not in this repo.
+
+`wrangler.jsonc` is an assets-only Worker config — no server code, no bindings. Manual deploys still work:
 
 ```bash
 cd web
@@ -133,7 +144,7 @@ npx wrangler login      # once
 npm run deploy
 ```
 
-Or use any static host: `npm run build` and publish `dist/`. Camera access requires HTTPS on real deployments (Cloudflare gives you that automatically).
+Or use any static host: `npm run build` and publish `dist/`. Camera access requires HTTPS on real deployments.
 
 ## Controls
 
